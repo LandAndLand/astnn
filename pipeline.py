@@ -18,6 +18,7 @@ class Pipeline:
             source = pd.read_pickle(path)
         else:
             from pycparser import c_parser
+            # CParser() transforms a character stream with legal C code into syntax trees
             parser = c_parser.CParser()
             source = pd.read_pickle(self.root+'programs.pkl')
 
@@ -26,6 +27,7 @@ class Pipeline:
 
             source.to_pickle(path)
         self.sources = source
+        #[id code(AST style) label]
         return source
 
     # split data for training, developing and testing
