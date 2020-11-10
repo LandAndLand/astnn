@@ -119,11 +119,14 @@ class BatchProgramCC(nn.Module):
         return zeros
 
     def encode(self, x):
+        # 取一个batch中的所有ast的 最大语句树个数
         lens = [len(item) for item in x]
         max_len = max(lens)
 
         encodes = []
+        # 对每一个样本i
         for i in range(self.batch_size):
+            # 取样本i的每一个语句树j
             for j in range(lens[i]):
                 encodes.append(x[i][j])
 
@@ -147,9 +150,15 @@ class BatchProgramCC(nn.Module):
 
         return gru_out
 
+    # x1和x2都是输入的一个batch，每个batch包含：32个样本，每个样本是由ast拆分得到的所有语句树序列组成的
+    # 即：每个样本是一个完整的ast树拆分得到的语句树组成，这些语句树的每个结点都被word2vec嵌入表示
+    # ast的某个语句树的表示形式: [1, [21, [34, [50]], [138]]]
+    # 同一个list中的结点是兄弟结点, 临近的在不同list的结点是父母-孩子结点关系, 如21是1的孩子结点, 34是21的孩子结点
+
     def forward(self, x1, x2):
         lvec, rvec = self.encode(x1), self.encode(x2)
 
+        # 一维范数计算两个编码的距离
         abs_dist = torch.abs(torch.add(lvec, -rvec))
 
         y = torch.sigmoid(self.hidden2label(abs_dist))
