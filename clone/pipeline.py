@@ -2,6 +2,9 @@ import pandas as pd
 import os
 import sys
 import warnings
+
+from pathlib import Path
+
 warnings.filterwarnings('ignore')
 
 class Pipeline:
@@ -160,23 +163,26 @@ class Pipeline:
 
     # run for processing data to train
     def run(self):
-        print('parse source code...')
-        self.parse_source(output_file='ast.pkl',option='existing')
-        print('read id pairs...')
-        if self.language is 'c':
-            self.read_pairs('oj_clone_ids.pkl')
+        if Path(self.root+'/'+self.language+'/'+'train/'+'blocks.pkl').exists():
+            print('data had benn preprocessed, please run file train.py ')
         else:
-            self.read_pairs('bcb_pair_ids.pkl')
-        print('split data...')
-        self.split_data()
-        print('train word embedding...')
-        self.dictionary_and_embedding(None,128)
-        print('generate block sequences...')
-        self.generate_block_seqs()
-        print('merge pairs and blocks...')
-        self.merge(self.train_file_path, 'train')
-        self.merge(self.dev_file_path, 'dev')
-        self.merge(self.test_file_path, 'test')
+            print('parse source code...')
+            self.parse_source(output_file='ast.pkl',option='existing')
+            print('read id pairs...')
+            if self.language is 'c':
+                self.read_pairs('oj_clone_ids.pkl')
+            else:
+                self.read_pairs('bcb_pair_ids.pkl')
+            print('split data...')
+            self.split_data()
+            print('train word embedding...')
+            self.dictionary_and_embedding(None,128)
+            print('generate block sequences...')
+            self.generate_block_seqs()
+            print('merge pairs and blocks...')
+            self.merge(self.train_file_path, 'train')
+            self.merge(self.dev_file_path, 'dev')
+            self.merge(self.test_file_path, 'test')
 
 
 import argparse
