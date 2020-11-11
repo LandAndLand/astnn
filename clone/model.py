@@ -102,6 +102,12 @@ class BatchProgramCC(nn.Module):
         self.hidden = self.init_hidden()
         self.dropout = nn.Dropout(0.2)
 
+        # 关于attention的
+        self.W_s1 = nn.Linear(2*hidden_size, 350)
+		self.W_s2 = nn.Linear(350, 30)
+		self.fc_layer = nn.Linear(30*2*hidden_size, 2000)
+
+
     def init_hidden(self):
         if self.gpu is True:
             if isinstance(self.bigru, nn.LSTM):
@@ -117,6 +123,29 @@ class BatchProgramCC(nn.Module):
         if self.gpu:
             return zeros.cuda()
         return zeros
+    def attention_net(self, bigru_out):
+        """
+        Now we will use self attention mechanism to produce a matrix embedding of the input sentence in which every row represents an
+		encoding of the input sentence but giving an attention to a specific part of the sentence. 
+
+        We will use 30 such embedding of the input sentence and then finally we will concatenate all the 30 sentence embedding vectors and connect it to a fully 
+		connected layer of size 2000 which will be connected to the output layer of size 2 returning logits for our two classes i.e., 
+		pos & neg.
+
+		Arguments
+		---------
+		lstm_output = A tensor containing hidden states corresponding to each time step of the LSTM network.
+		---------
+		Returns : Final Attention weight matrix for all the 30 different sentence embedding in which each of 30 embeddings give
+				  attention to different parts of the input sentence.
+		Tensor size : lstm_output.size() = (batch_size, num_seq, 2*hidden_size)
+					  attn_weight_matrix.size() = (batch_size, 30, num_seq)
+		"""
+		attn_weight_matrix = self.W_s2(F.tanh(self.W_s1(bigru_out)))
+		attn_weight_matrix = attn_weight_matrix.permute(0, 2, 1)
+		attn_weight_matrix = F.softmax(attn_weight_matrix, dim=2)
+
+		return attn_weight_matrix
 
     def encode(self, x):
         # 取一个batch中的所有ast的 最大语句树个数
@@ -141,14 +170,27 @@ class BatchProgramCC(nn.Module):
         encodes = torch.cat(seq)
         encodes = encodes.view(self.batch_size, max_len, -1)
         # return encodes
-
         gru_out, hidden = self.bigru(encodes, self.hidden)
-        gru_out = torch.transpose(gru_out, 1, 2)
+        # print(gru_out.size()) 
+        # (batch_size, num_seq, 2*encode_dim) 是输入到attention的表示
+        # print(hidden.size())
+        # (2, batch_size, encode_dim)
+        
         # pooling
-        gru_out = F.max_pool1d(gru_out, gru_out.size(2)).squeeze(2)
+        #gru_out = F.max_pool1d(gru_out, gru_out.size(2)).squeeze(2)
         # gru_out = gru_out[:,-1]
+        # gru_out.size() [atch_szie, 2* embedding_dim]
 
-        return gru_out
+        # attention
+        attn_weight_matrix = self.attention_net(gru_out)
+        hidden_matrix = torch.bmm(attn_weight_matrix, gru_out)
+        # hidden_matrix.size():[batch_size, 30, 2*embedding_dim]
+
+        # fully connected
+        gru_with_attn_out = hidden_matrix.view(-1, hidden_matrix.size()[1]*hidden_matrix.size()[2])
+        # hidden_matrix.size(): [batch_size, 30*2*embedding_dim]
+        
+        return gru_with_attn_out
 
     # x1和x2都是输入的一个batch，每个batch包含：32个样本，每个样本是由ast拆分得到的所有语句树序列组成的
     # 即：每个样本是一个完整的ast树拆分得到的语句树组成，这些语句树的每个结点都被word2vec嵌入表示

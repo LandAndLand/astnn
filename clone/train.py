@@ -89,7 +89,7 @@ if __name__ == '__main__':
             train_data_t, test_data_t = train_data, test_data
         # training procedure
         for epoch in range(EPOCHS):
-            logger.info(f'Epoch #{e}: Finetuning start on {f}')
+            logger.info(f'Epoch #the {epoch+1} is starting! ')
             start_time = time.time()
             # training epoch
             total_acc = 0.0
