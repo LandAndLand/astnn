@@ -3,12 +3,26 @@ import torch
 import time
 import numpy as np
 import warnings
+import logging
+
 from gensim.models.word2vec import Word2Vec
 from model import BatchProgramCC
 from torch.autograd import Variable
 from sklearn.metrics import precision_recall_fscore_support
 warnings.filterwarnings('ignore')
 
+"""
+设置运行日志文件
+通过调用 logger 类的实例来执行日志记录
+"""
+logging.basicConfig(
+    filename='train-c.logs',
+    filemode='a',
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%H:%M:%S',
+    level=logging.DEBUG,
+)
+logger = logging.getLogger()
 
 
 def get_batch(dataset, idx, bs):
@@ -75,6 +89,7 @@ if __name__ == '__main__':
             train_data_t, test_data_t = train_data, test_data
         # training procedure
         for epoch in range(EPOCHS):
+            logger.info(f'Epoch #{e}: Finetuning start on {f}')
             start_time = time.time()
             # training epoch
             total_acc = 0.0
@@ -94,9 +109,11 @@ if __name__ == '__main__':
                 output = model(train1_inputs, train2_inputs)
 
                 loss = loss_function(output, Variable(train_labels))
+                logger.info(f'\tLoss={loss.item()}')
                 loss.backward()
                 optimizer.step()
         print("Testing-%d..."%t)
+        
         # testing procedure
         predicts = []
         trues = []
@@ -129,7 +146,11 @@ if __name__ == '__main__':
             recall += weights[t] * r
             f1 += weights[t] * f
             print("Type-" + str(t) + ": " + str(p) + " " + str(r) + " " + str(f))
+            logger.info(f'\tP: {p}, R: {r}, F1: {f}')
+            logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
         else:
             precision, recall, f1, _ = precision_recall_fscore_support(trues, predicts, average='binary')
+            logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
 
     print("Total testing results(P,R,F1):%.3f, %.3f, %.3f" % (precision, recall, f1))
+    logger.info(f'\tTotal testing results(P,R,F1): {precision}, {recall}, {f1}')
