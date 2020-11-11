@@ -104,8 +104,9 @@ class BatchProgramCC(nn.Module):
 
         # 关于attention的
         self.W_s1 = nn.Linear(2*hidden_size, 350)
+        self.W_s2 = nn.Linear(350, 30)
 		self.W_s2 = nn.Linear(350, 30)
-		self.fc_layer = nn.Linear(30*2*hidden_size, 2000)
+		# self.fc_layer = nn.Linear(30*2*hidden_size, 2000)
 
 
     def init_hidden(self):
