@@ -103,7 +103,7 @@ class BatchProgramCC(nn.Module):
         self.dropout = nn.Dropout(0.2)
 
         # 关于attention的
-        self.W_s1 = nn.Linear(2*hidden_size, 350)
+        self.W_s1 = nn.Linear(2* self.hidden_dim, 350)
         self.W_s2 = nn.Linear(350, 30)
 		self.W_s2 = nn.Linear(350, 30)
 		# self.fc_layer = nn.Linear(30*2*hidden_size, 2000)
