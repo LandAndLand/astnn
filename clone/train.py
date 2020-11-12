@@ -66,8 +66,8 @@ if __name__ == '__main__':
     BATCH_SIZE = 32
     USE_GPU = True
 
-    model = BatchProgramCC(EMBEDDING_DIM,HIDDEN_DIM,MAX_TOKENS+1,ENCODE_DIM,LABELS,BATCH_SIZE,
-                                   USE_GPU, embeddings)
+    model = BatchProgramCC(EMBEDDING_DIM, HIDDEN_DIM, MAX_TOKENS+1, ENCODE_DIM, LABELS, BATCH_SIZE,
+                           USE_GPU, embeddings)
     if USE_GPU:
         model.cuda()
 
@@ -90,6 +90,7 @@ if __name__ == '__main__':
         # training procedure
         for epoch in range(EPOCHS):
             logger.info(f'Epoch #the {epoch+1} is starting! ')
+            print(f'Epoch  {epoch+1} is starting!')
             start_time = time.time()
             # training epoch
             total_acc = 0.0
@@ -112,8 +113,8 @@ if __name__ == '__main__':
                 logger.info(f'\tLoss={loss.item()}')
                 loss.backward()
                 optimizer.step()
-        print("Testing-%d..."%t)
-        
+        print("Testing-%d..." % t)
+
         # testing procedure
         predicts = []
         trues = []
@@ -141,16 +142,21 @@ if __name__ == '__main__':
             total_loss += loss.item() * len(test_labels)
         if lang == 'java':
             weights = [0, 0.005, 0.001, 0.002, 0.010, 0.982]
-            p, r, f, _ = precision_recall_fscore_support(trues, predicts, average='binary')
+            p, r, f, _ = precision_recall_fscore_support(
+                trues, predicts, average='binary')
             precision += weights[t] * p
             recall += weights[t] * r
             f1 += weights[t] * f
-            print("Type-" + str(t) + ": " + str(p) + " " + str(r) + " " + str(f))
+            print("Type-" + str(t) + ": " + str(p) +
+                  " " + str(r) + " " + str(f))
             logger.info(f'\tP: {p}, R: {r}, F1: {f}')
             logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
         else:
-            precision, recall, f1, _ = precision_recall_fscore_support(trues, predicts, average='binary')
+            precision, recall, f1, _ = precision_recall_fscore_support(
+                trues, predicts, average='binary')
             logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
 
-    print("Total testing results(P,R,F1):%.3f, %.3f, %.3f" % (precision, recall, f1))
-    logger.info(f'\tTotal testing results(P,R,F1): {precision}, {recall}, {f1}')
+    print("Total testing results(P,R,F1):%.3f, %.3f, %.3f" %
+          (precision, recall, f1))
+    logger.info(
+        f'\tTotal testing results(P,R,F1): {precision}, {recall}, {f1}')

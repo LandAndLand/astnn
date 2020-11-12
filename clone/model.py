@@ -147,7 +147,7 @@ class BatchProgramCC(nn.Module):
                 ---------
                 Returns : Final Attention weight matrix for all the 30 different sentence embedding in which each of 30 embeddings give
                                   attention to different parts of the input sentence.
-                Tensor size : lstm_output.size() = (batch_size, num_seq, 2*hidden_size)
+                Tensor size : lstm_output.size() = (batch_size, Fnum_seq, 2*hidden_size)
                                           attn_weight_matrix.size() = (batch_size, 30, num_seq)
                 """
 
@@ -210,9 +210,11 @@ class BatchProgramCC(nn.Module):
 
     def forward(self, x1, x2):
         lvec, rvec = self.encode(x1), self.encode(x2)
-        print(lvec.size(), rvec.size())
+        # print(lvec.size(), rvec.size())
+        # (batch_size,3*2*embedding_dim)
         # 一维范数计算两个编码的距离
         abs_dist = torch.abs(torch.add(lvec, -rvec))
-        print(abs_dist.size())
+        # print(abs_dist.size())
+        # (batch_size,3*2*embedding_dim)
         y = torch.sigmoid(self.hidden2label(abs_dist))
         return y
