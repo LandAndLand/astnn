@@ -75,7 +75,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adamax(parameters)
     loss_function = torch.nn.BCELoss()
 
-    print(train_data)
+    #print(train_data)
     precision, recall, f1 = 0, 0, 0
     print('Start training...')
     for t in range(1, categories+1):
@@ -155,6 +155,9 @@ if __name__ == '__main__':
             precision, recall, f1, _ = precision_recall_fscore_support(
                 trues, predicts, average='binary')
             logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
+        
+        print(f'\tP: {precision}, R: {recall}, F1: {f1}')
+
 
     print("Total testing results(P,R,F1):%.3f, %.3f, %.3f" %
           (precision, recall, f1))
