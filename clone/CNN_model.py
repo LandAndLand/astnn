@@ -7,7 +7,7 @@ from torch.nn import functional as F
 
 
 class CNN(nn.Module):
-    def __init__(self, batch_size=32, output_size=100, in_channels=1, out_channels=64, kernel_heights=[3, 3, 3], stride=1, padding=True, keep_probab=0.2, embedding_length=100):
+    def __init__(self, batch_size=32, output_size=100, in_channels=1, out_channels=64, kernel_heights=[3, 3, 3],  keep_probab=0.2, embedding_length=100):
         super(CNN, self).__init__()
 
         """
@@ -30,16 +30,13 @@ class CNN(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_heights = kernel_heights
-        self.stride = stride
-        self.padding = padding
-        self.embedding_length = embedding_length
+        # self.stride = stride
+        # self.padding = padding
+        self.embedding_length = 2*embedding_length
 
-        self.conv1 = nn.Conv2d(in_channels, out_channels,
-                               (kernel_heights[0], embedding_length), stride, padding)
-        self.conv2 = nn.Conv2d(in_channels, out_channels,
-                               (kernel_heights[1], embedding_length), stride, padding)
-        self.conv3 = nn.Conv2d(in_channels, out_channels,
-                               (kernel_heights[2], embedding_length), stride, padding)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, (self.kernel_heights[0], self.embedding_length))
+        self.conv2 = nn.Conv2d(in_channels, out_channels, (self.kernel_heights[1], self.embedding_length))
+        self.conv3 = nn.Conv2d(in_channels, out_channels, (self.kernel_heights[2], self.embedding_length))
         self.dropout = nn.Dropout(keep_probab)
         self.label = nn.Linear(len(kernel_heights)*out_channels, output_size)
 
@@ -53,7 +50,7 @@ class CNN(nn.Module):
 
         return max_out
 
-    def forward(self, input_sentences, batch_size=None):
+    def forward(self, input, batch_size=None):
         """
         The idea of the Convolutional Neural Netwok for Text Classification is very simple. We perform convolution operation on the embedding matrix
         whose shape for each batch is (num_seq, embedding_length) with kernel of varying height but constant width which is same as the embedding_length.
@@ -84,6 +81,6 @@ class CNN(nn.Module):
         # all_out.size() = (batch_size, num_kernels*out_channels)
         fc_in = self.dropout(all_out)
         # fc_in.size()) = (batch_size, num_kernels*out_channels)
-    logits = self.label(fc_in)
-    # logits.size() : (batch_size , 64)　
-    return logits
+        logits = self.label(fc_in)
+        # logits.size() : (batch_size , 64)　
+        return logits
