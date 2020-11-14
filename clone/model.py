@@ -22,7 +22,6 @@ class BatchTreeEncoder(nn.Module):
         self.th = torch.cuda if use_gpu else torch
         self.batch_node = None
         self.max_index = vocab_size
-        self.cnn_model = CNN()
         # pretrained  embedding
         if pretrained_weight is not None:
             self.embedding.weight.data.copy_(
@@ -105,6 +104,7 @@ class BatchProgramCC(nn.Module):
         # gru
         self.bigru = nn.GRU(self.encode_dim, self.hidden_dim, num_layers=self.num_layers, bidirectional=True,
                             batch_first=True)
+        self.cnn = CNN()
         # linear
         self.hidden2label = nn.Linear(
             self.hidden_dim * 2 * 30, self.label_size)
@@ -209,7 +209,7 @@ class BatchProgramCC(nn.Module):
         # hidden_matrix.size(): [batch_size, 30*2*embedding_dim]
 
         # cnn
-        gru_cnn_out = self.cnn_model(bigru_out)
+        gru_cnn_out = self.cnn(gru_out)
 
         # return gru_with_attn_out
         return gru_cnn_out
