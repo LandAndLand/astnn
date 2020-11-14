@@ -6,6 +6,7 @@ import random
 from torch.autograd import Variable
 from CNN_model import CNN
 
+
 class BatchTreeEncoder(nn.Module):
     def __init__(self, vocab_size, embedding_dim, encode_dim, batch_size, use_gpu, pretrained_weight=None):
         super(BatchTreeEncoder, self).__init__()
@@ -108,7 +109,7 @@ class BatchProgramCC(nn.Module):
         self.hidden2label = nn.Linear(
             self.hidden_dim * 2 * 30, self.label_size)
 
-        self.cnn2label = nn.Linear(self.hidden_dim,self.label_size)
+        self.cnn2label = nn.Linear(self.hidden_dim, self.label_size)
 
         # hidden
         self.hidden = self.init_hidden()
@@ -164,7 +165,6 @@ class BatchProgramCC(nn.Module):
 
         return attn_weight_matrix
 
-    
     def encode(self, x):
         # 取一个batch中的所有ast的 最大语句树个数
         lens = [len(item) for item in x]
@@ -233,6 +233,6 @@ class BatchProgramCC(nn.Module):
         #y = torch.sigmoid(self.hidden2label(abs_dist))
 
         # gru_cnn_out：
-        
+
         y = torch.sigmoid(self.cnn2label(abs_dist))
         return y
