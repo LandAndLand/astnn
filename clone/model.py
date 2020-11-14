@@ -1,9 +1,10 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-from torch.autograd import Variable
 import random
 
+from torch.autograd import Variable
+from CNN_model import CNN
 
 class BatchTreeEncoder(nn.Module):
     def __init__(self, vocab_size, embedding_dim, encode_dim, batch_size, use_gpu, pretrained_weight=None):
@@ -20,6 +21,7 @@ class BatchTreeEncoder(nn.Module):
         self.th = torch.cuda if use_gpu else torch
         self.batch_node = None
         self.max_index = vocab_size
+        self.cnn_model = CNN()
         # pretrained  embedding
         if pretrained_weight is not None:
             self.embedding.weight.data.copy_(
@@ -106,6 +108,8 @@ class BatchProgramCC(nn.Module):
         self.hidden2label = nn.Linear(
             self.hidden_dim * 2 * 30, self.label_size)
 
+        self.cnn2label = nn.Linear(self.hidden_dim,self.label_size)
+
         # hidden
         self.hidden = self.init_hidden()
         self.dropout = nn.Dropout(0.2)
@@ -160,38 +164,7 @@ class BatchProgramCC(nn.Module):
 
         return attn_weight_matrix
 
-    def conv_block(self, input, conv_layer):
-        # conv_out.size() = (batch_size, out_channels, dim, 1)
-        conv_out = conv_layer(input)
-        # activation.size() = (batch_size, out_channels, dim)
-        activation = F.relu(conv_out.squeeze(3))
-        max_out = F.max_pool1d(activation, activation.size()[2]).squeeze(
-            2)  # maxpool_out.size() = (batch_size, out_channels)
-        return max_out
-
-    def cnn_net(self, bigru_out):
-        in_channels = 1
-        out_channels = 32
-        kernel_heights = [3, 3, 3]
-
-        self.conv1 = nn.Conv2d(in_channels, out_channels,
-                               (kernel_heights[0], self.embedding_dim))
-        self.conv1 = nn.Conv2d(in_channels, out_channels,
-                               (kernel_heights[1], self.embedding_dim))
-        self.conv3 = nn.Conv2d(in_channels, out_channels,
-                               kernel_heights[2], self.embedding_dim)
-
-        # bigru_out.size() = (batch_size, num_seq, embedding_length)
-        bigru_out = bigru_out.unsqueeze(1)
-        max_out1 = self.conv_block(input, self.conv1)
-        max_out2 = self.conv_block(input, self.conv2)
-        max_out3 = self.conv_block(input, self.conv3)
-        all_out = torch.cat((max_out1, max_out2, max_out3), 1)
-        # all_out.size() = (batch_size, num_kernels*out_channels)
-        fc_in = self.dropout(all_out)
-        # # fc_in.size()) = (batch_size, num_kernels*out_channels)
-        return fc_in
-
+    
     def encode(self, x):
         # 取一个batch中的所有ast的 最大语句树个数
         lens = [len(item) for item in x]
@@ -236,7 +209,7 @@ class BatchProgramCC(nn.Module):
         # hidden_matrix.size(): [batch_size, 30*2*embedding_dim]
 
         # cnn
-        gru_cnn_out = cnn_net(bigru_out)
+        gru_cnn_out = self.cnn_model(bigru_out)
 
         # return gru_with_attn_out
         return gru_cnn_out
@@ -260,6 +233,6 @@ class BatchProgramCC(nn.Module):
         #y = torch.sigmoid(self.hidden2label(abs_dist))
 
         # gru_cnn_out：
-        cnn2label = nn.Linear(lvec.shape[1], self.label_size)
-        y = torch.sigmoid(cnn2label(abs_dist))
+        
+        y = torch.sigmoid(self.cnn2label(abs_dist))
         return y
