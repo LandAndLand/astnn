@@ -105,6 +105,8 @@ class BatchProgramCC(nn.Module):
         # linear
         self.hidden2label = nn.Linear(
             self.hidden_dim * 2 * 30, self.label_size)
+
+        
         # hidden
         self.hidden = self.init_hidden()
         self.dropout = nn.Dropout(0.2)
@@ -113,6 +115,10 @@ class BatchProgramCC(nn.Module):
         self.W_s1 = nn.Linear(2 * self.hidden_dim, 350)
         self.W_s2 = nn.Linear(350, 30)
         # self.fc_layer = nn.Linear(30*2*hidden_size, 2000)
+
+
+        # 关于CNN的
+
 
     def init_hidden(self):
         if self.gpu is True:
@@ -156,6 +162,35 @@ class BatchProgramCC(nn.Module):
         attn_weight_matrix = F.softmax(attn_weight_matrix, dim=2)
 
         return attn_weight_matrix
+    def conv_block(self, input, conv_layer):
+        conv_out = conv_layer(input) # conv_out.size() = (batch_size, out_channels, dim, 1)
+        activation = F.relu(conv_out.squeeze(3))# activation.size() = (batch_size, out_channels, dim)
+        max_out = F.max_pool1d(activation, activation.size()[2]).squeeze(2)# maxpool_out.size() = (batch_size, out_channels)
+        return max_out
+
+    def cnn_net(self, bigru_out):
+        in_channels = 1
+        out_channels = 32
+        kernel_heights = [3,3,3]
+
+        self.conv1 = nn.Conv2d(in_channels, out_channels, (kernel_heights[0], self.embedding_dim))
+		self.conv2 = nn.Conv2d(in_channels, out_channels, (kernel_heights[1], self.embedding_dim))
+		self.conv3 = nn.Conv2d(in_channels, out_channels, (kernel_heights[2], self.embedding_dim))
+
+        bigru_out = bigru_out.unsqueeze(1)# bigru_out.size() = (batch_size, num_seq, embedding_length)
+        max_out1 = self.conv_block(input, self.conv1)
+        max_out2 = self.conv_block(input, self.conv2)
+        max_out3 = self.conv_block(input, self.conv3)
+        all_out = torch.cat((max_out1, max_out2, max_out3), 1)
+        # all_out.size() = (batch_size, num_kernels*out_channels)
+        fc_in = self.dropout(all_out)
+        # # fc_in.size()) = (batch_size, num_kernels*out_channels)
+        return fc_in
+
+
+
+
+
 
     def encode(self, x):
         # 取一个batch中的所有ast的 最大语句树个数
@@ -192,17 +227,19 @@ class BatchProgramCC(nn.Module):
         # gru_out.size() [atch_szie, 2* embedding_dim]
 
         # attention
-        attn_weight_matrix = self.attention_net(gru_out)
-        hidden_matrix = torch.bmm(attn_weight_matrix, gru_out)
+        # attn_weight_matrix = self.attention_net(gru_out)
+        # hidden_matrix = torch.bmm(attn_weight_matrix, gru_out)
         # hidden_matrix.size():[batch_size, 30, 2*embedding_dim]
 
         # fully connected
-        gru_with_attn_out = hidden_matrix.view(
-            -1, hidden_matrix.size()[1]*hidden_matrix.size()[2])
+        # gru_with_attn_out = hidden_matrix.view(-1, hidden_matrix.size()[1]*hidden_matrix.size()[2])
         # hidden_matrix.size(): [batch_size, 30*2*embedding_dim]
 
-        return gru_with_attn_out
+        # cnn
+        gru_cnn_out = cnn_net(bigru_out)
 
+        #return gru_with_attn_out
+        return gru_cnn_out 
     # x1和x2都是输入的一个batch，每个batch包含：32个样本，每个样本是由ast拆分得到的所有语句树序列组成的
     # 即：每个样本是一个完整的ast树拆分得到的语句树组成，这些语句树的每个结点都被word2vec嵌入表示
     # ast的某个语句树的表示形式: [1, [21, [34, [50]], [138]]]
@@ -211,10 +248,18 @@ class BatchProgramCC(nn.Module):
     def forward(self, x1, x2):
         lvec, rvec = self.encode(x1), self.encode(x2)
         # print(lvec.size(), rvec.size())
-        # (batch_size,3*2*embedding_dim)
+        # gru_with_attn:(batch_size,3*2*embedding_dim)
+        # gru_cnn_out： (batch_size, num_kernels*out_channels)
+
         # 一维范数计算两个编码的距离
         abs_dist = torch.abs(torch.add(lvec, -rvec))
         # print(abs_dist.size())
         # (batch_size,3*2*embedding_dim)
-        y = torch.sigmoid(self.hidden2label(abs_dist))
+        
+        # gru_with_attn：
+        #y = torch.sigmoid(self.hidden2label(abs_dist))
+
+        # gru_cnn_out：
+        cnn2label = nn.Linear(lvec.shape[1], self.label_size)
+        y = torch.sigmoid(cnn2label(abs_dist))
         return y
