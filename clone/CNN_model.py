@@ -78,6 +78,6 @@ class CNN(nn.Module):
 		# all_out.size() = (batch_size, num_kernels*out_channels)
 		fc_in = self.dropout(all_out)
 		# fc_in.size()) = (batch_size, num_kernels*out_channels)
-        logits = self.label(fc_in)
+    logits = self.label(fc_in)
 		# logits.size() : (batch_size , 64)　
 		return logits
