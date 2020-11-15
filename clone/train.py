@@ -56,7 +56,7 @@ if __name__ == '__main__':
     train_data = pd.read_pickle(root+lang+'/train/blocks.pkl').sample(frac=1)
     test_data = pd.read_pickle(root+lang+'/test/blocks.pkl').sample(frac=1)
 
-    word2vec = Word2Vec.load(root+lang+"/train/embedding_node_w2v_128").wv
+    word2vec = Word2Vec.load(root+lang+"/train/embedding/node_w2v_128").wv
     MAX_TOKENS = word2vec.syn0.shape[0]
     EMBEDDING_DIM = word2vec.syn0.shape[1]
     embeddings = np.zeros((MAX_TOKENS + 1, EMBEDDING_DIM), dtype="float32")
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     ENCODE_DIM = 128
     LABELS = 1
     #EPOCHS = 20
-    EPOCHS = args.epochs
+    EPOCHS = int(args.epochs)
     BATCH_SIZE = 32
     USE_GPU = True
 
@@ -92,6 +92,7 @@ if __name__ == '__main__':
         else:
             train_data_t, test_data_t = train_data, test_data
         # training procedure
+        print(f'EPOCHS:{EPOCHS}')
         for epoch in range(EPOCHS):
             logger.info(f'Epoch #the {epoch+1} is starting! ')
             print(f'Epoch  {epoch+1} is starting!')
