@@ -9,6 +9,8 @@ from gensim.models.word2vec import Word2Vec
 from model import BatchProgramCC
 from torch.autograd import Variable
 from sklearn.metrics import precision_recall_fscore_support
+from pathlib import Path
+
 warnings.filterwarnings('ignore')
 
 """
@@ -40,6 +42,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Choose a dataset:[c|java]")
     parser.add_argument('--lang')
+    parser.add_argument('--epochs')
     args = parser.parse_args()
     if not args.lang:
         print("No specified dataset")
@@ -53,7 +56,7 @@ if __name__ == '__main__':
     train_data = pd.read_pickle(root+lang+'/train/blocks.pkl').sample(frac=1)
     test_data = pd.read_pickle(root+lang+'/test/blocks.pkl').sample(frac=1)
 
-    word2vec = Word2Vec.load(root+lang+"/train/embedding/node_w2v_128").wv
+    word2vec = Word2Vec.load(root+lang+"/train/embedding_node_w2v_128").wv
     MAX_TOKENS = word2vec.syn0.shape[0]
     EMBEDDING_DIM = word2vec.syn0.shape[1]
     embeddings = np.zeros((MAX_TOKENS + 1, EMBEDDING_DIM), dtype="float32")
@@ -62,7 +65,8 @@ if __name__ == '__main__':
     HIDDEN_DIM = 100
     ENCODE_DIM = 128
     LABELS = 1
-    EPOCHS = 5
+    #EPOCHS = 20
+    EPOCHS = args.epochs
     BATCH_SIZE = 32
     USE_GPU = True
 
@@ -113,6 +117,11 @@ if __name__ == '__main__':
                 logger.info(f'\tLoss={loss.item()}')
                 loss.backward()
                 optimizer.step()
+        # 保存训练好的模型        
+        model_save_dir = Path('saved_models')
+        if not model_save_dir.exists():
+            model_save_dir.mkdir()
+        torch.save(model.state_dict(), 'saved_models/model_epoch_'+str(EPOCHS))
         print("Testing-%d..." % t)
 
         # testing procedure
@@ -157,6 +166,7 @@ if __name__ == '__main__':
             logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
         
         print(f'\tP: {precision}, R: {recall}, F1: {f1}')
+        
 
 
     print("Total testing results(P,R,F1):%.3f, %.3f, %.3f" %
