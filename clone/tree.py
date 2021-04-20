@@ -1,4 +1,4 @@
-from javalang.ast import Node
+#from javalang.ast import Node
 
 class ASTNode(object):
     def __init__(self, node):
