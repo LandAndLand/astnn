@@ -8,8 +8,9 @@ import logging
 from gensim.models.word2vec import Word2Vec
 from model import BatchProgramCC
 from torch.autograd import Variable
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 from pathlib import Path
+from tensorboardX import SummaryWriter
 
 warnings.filterwarnings('ignore')
 
@@ -36,7 +37,6 @@ def get_batch(dataset, idx, bs):
         labels.append([item['label']])
     return x1, x2, torch.FloatTensor(labels)
 
-
 if __name__ == '__main__':
     import argparse
 
@@ -60,6 +60,7 @@ if __name__ == '__main__':
     MAX_TOKENS = word2vec.syn0.shape[0]
     EMBEDDING_DIM = word2vec.syn0.shape[1]
     embeddings = np.zeros((MAX_TOKENS + 1, EMBEDDING_DIM), dtype="float32")
+    # word2vec.syn0 是embedding得到的矩阵
     embeddings[:word2vec.syn0.shape[0]] = word2vec.syn0
 
     HIDDEN_DIM = 100
@@ -69,7 +70,8 @@ if __name__ == '__main__':
     EPOCHS = int(args.epochs)
     BATCH_SIZE = 32
     USE_GPU = True
-
+    writer = SummaryWriter(
+            f'runs/{EPOCHS}-epochs')
     model = BatchProgramCC(EMBEDDING_DIM, HIDDEN_DIM, MAX_TOKENS+1, ENCODE_DIM, LABELS, BATCH_SIZE,
                            USE_GPU, embeddings)
     if USE_GPU:
@@ -115,15 +117,18 @@ if __name__ == '__main__':
                 output = model(train1_inputs, train2_inputs)
 
                 loss = loss_function(output, Variable(train_labels))
-                logger.info(f'\tLoss={loss.item()}')
+                #logger.info(f'\tLoss={loss.item()}')
+
                 loss.backward()
                 optimizer.step()
-        # 保存训练好的模型        
-        model_save_dir = Path('saved_models')
-        if not model_save_dir.exists():
-            model_save_dir.mkdir()
-        torch.save(model.state_dict(), 'saved_models/model_epoch_'+str(EPOCHS))
-        print("Testing-%d..." % t)
+                writer.add_scalar(
+                    'training_loss', loss, epoch*len(train_data_t)+i+1)
+            # 保存训练好的模型        
+            model_save_dir = Path('saved_models')
+            if not model_save_dir.exists():
+                model_save_dir.mkdir()
+            torch.save(model.state_dict(), 'saved_models/model_epoch_'+str(EPOCHS))
+            print("Testing-%d..." % t)
 
         # testing procedure
         predicts = []
@@ -131,46 +136,59 @@ if __name__ == '__main__':
         total_loss = 0.0
         total = 0.0
         i = 0
-        while i < len(test_data_t):
-            batch = get_batch(test_data_t, i, BATCH_SIZE)
-            i += BATCH_SIZE
-            test1_inputs, test2_inputs, test_labels = batch
-            if USE_GPU:
-                test_labels = test_labels.cuda()
+        models = os.listdir('saved_models/')
+        models.sort(key=lambda x: int(
+                x.split('h')[1].split('_')[1]))
+        print(models)
+        writer_test = SummaryWriter(f'runs/{EPOCHS}_test')
+        for index, save_model in enumerate(models):
+            model = torch.load(f'saved_models/{save_model}')
+            while i < len(test_data_t):
+                batch = get_batch(test_data_t, i, BATCH_SIZE)
+                i += BATCH_SIZE
+                test1_inputs, test2_inputs, test_labels = batch
+                if USE_GPU:
+                    test_labels = test_labels.cuda()
 
-            model.batch_size = len(test_labels)
-            model.hidden = model.init_hidden()
-            output = model(test1_inputs, test2_inputs)
+                model.batch_size = len(test_labels)
+                model.hidden = model.init_hidden()
+                output = model(test1_inputs, test2_inputs)
 
-            loss = loss_function(output, Variable(test_labels))
+                loss = loss_function(output, Variable(test_labels))
 
-            # calc testing acc
-            predicted = (output.data > 0.5).cpu().numpy()
-            predicts.extend(predicted)
-            trues.extend(test_labels.cpu().numpy())
-            total += len(test_labels)
-            total_loss += loss.item() * len(test_labels)
-        if lang == 'java':
-            weights = [0, 0.005, 0.001, 0.002, 0.010, 0.982]
-            p, r, f, _ = precision_recall_fscore_support(
-                trues, predicts, average='binary')
-            precision += weights[t] * p
-            recall += weights[t] * r
-            f1 += weights[t] * f
-            print("Type-" + str(t) + ": " + str(p) +
-                  " " + str(r) + " " + str(f))
-            logger.info(f'\tP: {p}, R: {r}, F1: {f}')
-            logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
-        else:
-            precision, recall, f1, _ = precision_recall_fscore_support(
-                trues, predicts, average='binary')
-            logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
+                # calc testing acc
+                predicted = (output.data > 0.5).cpu().numpy()
+                predicts.extend(predicted)
+                trues.extend(test_labels.cpu().numpy())
+                total += len(test_labels)
+                total_loss += loss.item() * len(test_labels)
+            if lang == 'java':
+                weights = [0, 0.005, 0.001, 0.002, 0.010, 0.982]
+                p, r, f, _ = precision_recall_fscore_support(
+                    trues, predicts, average='binary')
+                precision += weights[t] * p
+                recall += weights[t] * r
+                f1 += weights[t] * f
+                print("Type-" + str(t) + ": " + str(p) +
+                    " " + str(r) + " " + str(f))
+                logger.info(f'\tP: {p}, R: {r}, F1: {f}')
+                logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
+            else:
+                precision, recall, f1, _ = precision_recall_fscore_support(
+                    trues, predicts, average='binary')
+                logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
+            
+            #writer_test.add_scalar('test_acc', acc, index)
+            acc = accuracy_score(trues, predicts)
+            writer_test.add_scalar('test_accuracy', acc, index+1)
+            writer_test.add_scalar('test_precision', precision, index+1)
+            writer_test.add_scalar('test_recall', recall, index+1)
+            writer_test.add_scalar('test_f1', f1, index+1)
+            
+            print(f'\tP: {precision}, R: {recall}, F1: {f1}')
         
-        print(f'\tP: {precision}, R: {recall}, F1: {f1}')
-        
-
-
     print("Total testing results(P,R,F1):%.3f, %.3f, %.3f" %
           (precision, recall, f1))
+    print(f'acc: {acc}')
     logger.info(
-        f'\tTotal testing results(P,R,F1): {precision}, {recall}, {f1}')
+        f'\tTotal testing results(P,R,F1,acc): {precision}, {recall}, {f1}, {acc}')
