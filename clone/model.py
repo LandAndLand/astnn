@@ -49,7 +49,7 @@ class BatchTreeEncoder(nn.Module):
             temp = node[i][1:]
             c_num = len(temp)
             for j in range(c_num):
-                if temp[j][0] is not -1:
+                if temp[j][0] != -1:
                     if len(children_index) <= j:
                         children_index.append([i])
                         children.append([temp[j]])
