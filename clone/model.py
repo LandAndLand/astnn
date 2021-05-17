@@ -87,8 +87,9 @@ class BatchTreeEncoder(nn.Module):
 
 
 class BatchProgramCC(nn.Module):
-    def __init__(self, embedding_dim, hidden_dim, vocab_size, encode_dim, label_size, batch_size, use_gpu=True, pretrained_weight=None):
+    def __init__(self, embedding_dim, hidden_dim, vocab_size, encode_dim, label_size, batch_size, use_gpu=True, pretrained_weight=None,model=None):
         super(BatchProgramCC, self).__init__()
+        self.model = model
         self.stop = [vocab_size-1]
         self.hidden_dim = hidden_dim
         self.num_layers = 1
@@ -105,7 +106,10 @@ class BatchProgramCC(nn.Module):
         self.bigru = nn.GRU(self.encode_dim, self.hidden_dim, num_layers=self.num_layers, bidirectional=True,
                             batch_first=True)
         self.cnn = CNN()
-        # linear
+
+        self.pooling2label = nn.Linear(self.hidden_dim * 2, self.label_size)
+
+        # attention linear
         self.hidden2label = nn.Linear(
             self.hidden_dim * 2 * 30, self.label_size)
 
@@ -118,10 +122,8 @@ class BatchProgramCC(nn.Module):
         # 关于attention的
         self.W_s1 = nn.Linear(2 * self.hidden_dim, 350)
         self.W_s2 = nn.Linear(350, 30)
-        # self.fc_layer = nn.Linear(30*2*hidden_size, 2000)
-
-        # 关于CNN的
-
+        #self.fc_layer = nn.Linear(30*2*hidden_size, 2000)
+        
     def init_hidden(self):
         if self.gpu is True:
             if isinstance(self.bigru, nn.LSTM):
@@ -194,25 +196,31 @@ class BatchProgramCC(nn.Module):
         # print(hidden.size())
         # (2, batch_size, encode_dim)
 
-        # pooling
-        #gru_out = F.max_pool1d(gru_out, gru_out.size(2)).squeeze(2)
-        # gru_out = gru_out[:,-1]
-        # gru_out.size() [atch_szie, 2* embedding_dim]
+        if 'pool' in self.model: 
+            # pooling
+            gru_out = torch.transpose(gru_out, 1, 2)
+            gru_out = F.max_pool1d(gru_out, gru_out.size(2)).squeeze(2)
+            #gru_out = gru_out[:,-1]
+            # gru_out.size() [batch_szie, 2* embedding_dim]
+            return gru_out
+        elif 'att' in self.model:
+            # attention
+            attn_weight_matrix = self.attention_net(gru_out)
+            hidden_matrix = torch.bmm(attn_weight_matrix, gru_out)
+            #hidden_matrix.size():[batch_size, 30, 2*embedding_dim]
+            # fully connected
+            gru_with_attn_out = hidden_matrix.view(-1, hidden_matrix.size()[1]*hidden_matrix.size()[2])
+            # hidden_matrix.size(): [batch_size, 30*2*embedding_dim]
+            return gru_with_attn_out
+        else:
+            # cnn
+            gru_cnn_out = self.cnn(gru_out)
+            return gru_cnn_out
 
-        # attention
-        # attn_weight_matrix = self.attention_net(gru_out)
-        # hidden_matrix = torch.bmm(attn_weight_matrix, gru_out)
-        # hidden_matrix.size():[batch_size, 30, 2*embedding_dim]
-
-        # fully connected
-        # gru_with_attn_out = hidden_matrix.view(-1, hidden_matrix.size()[1]*hidden_matrix.size()[2])
-        # hidden_matrix.size(): [batch_size, 30*2*embedding_dim]
-
-        # cnn
-        gru_cnn_out = self.cnn(gru_out)
-
-        # return gru_with_attn_out
-        return gru_cnn_out
+        #return gru_with_attn_out
+        #return gru_cnn_out
+        # pooling 
+        #return gru_out
     # x1和x2都是输入的一个batch，每个batch包含：32个样本，每个样本是由ast拆分得到的所有语句树序列组成的
     # 即：每个样本是一个完整的ast树拆分得到的语句树组成，这些语句树的每个结点都被word2vec嵌入表示
     # ast的某个语句树的表示形式: [1, [21, [34, [50]], [138]]]
@@ -228,11 +236,15 @@ class BatchProgramCC(nn.Module):
         abs_dist = torch.abs(torch.add(lvec, -rvec))
         # print(abs_dist.size())
         # (batch_size,3*2*embedding_dim)
-
+        
         # gru_with_attn：
-        #y = torch.sigmoid(self.hidden2label(abs_dist))
-
-        # gru_cnn_out：
-
-        y = torch.sigmoid(self.cnn2label(abs_dist))
+        if 'pool' in self.model: 
+            # gru with pooling 
+            y = torch.sigmoid(self.pooling2label(abs_dist))
+        elif 'att' in self.model:
+            y = torch.sigmoid(self.hidden2label(abs_dist))
+        else:
+            # gru_cnn_out：
+            y = torch.sigmoid(self.cnn2label(abs_dist))
+        #print(f'y: {y}')
         return y

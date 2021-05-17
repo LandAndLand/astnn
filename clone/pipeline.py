@@ -26,7 +26,7 @@ class Pipeline:
         if os.path.exists(path) and option == 'existing':
             source = pd.read_pickle(path)
         else:
-            if self.language is 'c':
+            if self.language == 'c':
                 from pycparser import c_parser
                 parser = c_parser.CParser()
                 source = pd.read_pickle(self.root+self.language+'/programs.pkl')
@@ -96,7 +96,7 @@ class Pipeline:
         trees = self.sources.set_index('id',drop=False).loc[train_ids]
         if not os.path.exists(data_path+'train/embedding'):
             os.mkdir(data_path+'train/embedding')
-        if self.language is 'c':
+        if self.language == 'c':
             sys.path.append('../')
             from prepare_data import get_sequences as func
         else:
@@ -117,7 +117,7 @@ class Pipeline:
 
     # generate block sequences with index representations
     def generate_block_seqs(self):
-        if self.language is 'c':
+        if self.language == 'c':
             from prepare_data import get_blocks as func
         else:
             from utils import get_blocks_v1 as func
@@ -169,7 +169,7 @@ class Pipeline:
             print('parse source code...')
             self.parse_source(output_file='ast.pkl',option='existing')
             print('read id pairs...')
-            if self.language is 'c':
+            if self.language == 'c':
                 self.read_pairs('oj_clone_ids.pkl')
             else:
                 self.read_pairs('bcb_pair_ids.pkl')

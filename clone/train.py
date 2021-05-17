@@ -4,11 +4,21 @@ import time
 import numpy as np
 import warnings
 import logging
+import os
 
 from gensim.models.word2vec import Word2Vec
 from model import BatchProgramCC
 from torch.autograd import Variable
-from sklearn.metrics import precision_recall_fscore_support, accuracy_score
+#from sklearn.metrics import precision_recall_fscore_support, accuracy_score
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    roc_auc_score,
+    precision_score,
+    recall_score,
+    f1_score
+)
 from pathlib import Path
 from tensorboardX import SummaryWriter
 
@@ -42,7 +52,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Choose a dataset:[c|java]")
     parser.add_argument('--lang')
-    parser.add_argument('--epochs')
+    parser.add_argument('--epochs', default=60)
+    parser.add_argument('--model', default='attention')
     args = parser.parse_args()
     if not args.lang:
         print("No specified dataset")
@@ -73,7 +84,9 @@ if __name__ == '__main__':
     writer = SummaryWriter(
             f'runs/{EPOCHS}-epochs')
     model = BatchProgramCC(EMBEDDING_DIM, HIDDEN_DIM, MAX_TOKENS+1, ENCODE_DIM, LABELS, BATCH_SIZE,
-                           USE_GPU, embeddings)
+                           USE_GPU, embeddings, model=args.model)
+    logger.info(f'\t model: {args.model}, languge: {args.lang}, epoch: {EPOCHS}')
+    
     if USE_GPU:
         model.cuda()
 
@@ -93,12 +106,15 @@ if __name__ == '__main__':
             test_data_t.loc[test_data_t['label'] > 0, 'label'] = 1
         else:
             train_data_t, test_data_t = train_data, test_data
+            #train_data_t, test_data_t = train_data[:200], test_data[:200]
         # training procedure
         print(f'EPOCHS:{EPOCHS}')
+        start_time = time.time()
         for epoch in range(EPOCHS):
+            model.train()
             logger.info(f'Epoch #the {epoch+1} is starting! ')
             print(f'Epoch  {epoch+1} is starting!')
-            start_time = time.time()
+            #start_time = time.time()
             # training epoch
             total_acc = 0.0
             total_loss = 0.0
@@ -122,27 +138,31 @@ if __name__ == '__main__':
                 loss.backward()
                 optimizer.step()
                 writer.add_scalar(
-                    'training_loss', loss, epoch*len(train_data_t)+i+1)
+                    'training_loss', loss.item(), epoch*len(train_data_t)+i+1)
             # 保存训练好的模型        
-            model_save_dir = Path('saved_models')
+            model_save_dir = Path(f'saved_models/{args.model}')
             if not model_save_dir.exists():
-                model_save_dir.mkdir()
-            torch.save(model.state_dict(), 'saved_models/model_epoch_'+str(EPOCHS))
+                #model_save_dir.mkdir()
+                os.makedirs(f'saved_models/{args.model}')
+            torch.save(model.state_dict(), f'saved_models/{args.model}/model_epoch_'+str(epoch))
+            #torch.save(model, 'saved_models/model_epoch_'+str(EPOCHS))
             print("Testing-%d..." % t)
-
+        end_time = time.time()
+        logger.info(f'train time: {end_time-start_time}')
         # testing procedure
         predicts = []
         trues = []
         total_loss = 0.0
         total = 0.0
         i = 0
-        models = os.listdir('saved_models/')
+        models = os.listdir(f'saved_models/{args.model}')
         models.sort(key=lambda x: int(
                 x.split('h')[1].split('_')[1]))
         print(models)
-        writer_test = SummaryWriter(f'runs/{EPOCHS}_test')
+        writer_test = SummaryWriter(f'runs/{args.model}/{EPOCHS}_test')
         for index, save_model in enumerate(models):
-            model = torch.load(f'saved_models/{save_model}')
+            model.load_state_dict(torch.load(f'saved_models/{args.model}/{save_model}'))
+            model.eval()
             while i < len(test_data_t):
                 batch = get_batch(test_data_t, i, BATCH_SIZE)
                 i += BATCH_SIZE
@@ -155,6 +175,7 @@ if __name__ == '__main__':
                 output = model(test1_inputs, test2_inputs)
 
                 loss = loss_function(output, Variable(test_labels))
+                #writer_test.add_scalar('loss', loss, index+1)
 
                 # calc testing acc
                 predicted = (output.data > 0.5).cpu().numpy()
@@ -174,21 +195,29 @@ if __name__ == '__main__':
                 logger.info(f'\tP: {p}, R: {r}, F1: {f}')
                 logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
             else:
-                precision, recall, f1, _ = precision_recall_fscore_support(
-                    trues, predicts, average='binary')
-                logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}')
+                # precision, recall, f1, support = precision_recall_fscore_support(
+                #     trues, predicts, average='binary')
+                cm = confusion_matrix(trues, predicts)
+                acc = accuracy_score(trues, predicts)
+                precision = precision_score(
+                    trues, predicts, average="weighted")
+                recall = recall_score(trues, predicts, average="weighted")
+                f1 = f1_score(trues, predicts, average="weighted")
+                #score = roc_auc_score(y_true, y_pred)
+                report = classification_report(trues, predicts)
+                logger.info(f'\tP: {precision}, R: {recall}, F1: {f1}, ACC: {acc}')
             
             #writer_test.add_scalar('test_acc', acc, index)
-            acc = accuracy_score(trues, predicts)
+            #acc = accuracy_score(trues, predicts)
             writer_test.add_scalar('test_accuracy', acc, index+1)
             writer_test.add_scalar('test_precision', precision, index+1)
             writer_test.add_scalar('test_recall', recall, index+1)
             writer_test.add_scalar('test_f1', f1, index+1)
             
-            print(f'\tP: {precision}, R: {recall}, F1: {f1}')
+            print(f'\tP: {precision}, R: {recall}, F1: {f1}, acc: {acc}')
         
-    print("Total testing results(P,R,F1):%.3f, %.3f, %.3f" %
-          (precision, recall, f1))
-    print(f'acc: {acc}')
-    logger.info(
-        f'\tTotal testing results(P,R,F1,acc): {precision}, {recall}, {f1}, {acc}')
+    # print("Total testing results(P,R,F1):%.3f, %.3f, %.3f" %
+    #       (precision, recall, f1))
+    # print(f'acc: {acc}')
+            # logger.info(
+            #     f'\t testing results(P,R,F1,acc) for {save_model}: \np:{precision}, R:{recall}, F1:{f1}, ACC:{acc}')
